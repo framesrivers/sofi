@@ -152,6 +152,36 @@ h1{font-family:var(--f-display);font-weight:600;font-size:27px;line-height:1.05;
 .copy{border:0;border-radius:999px;background:var(--ink);color:var(--bg);font-size:14px;font-weight:600;padding:0 18px;height:44px;cursor:pointer}
 .err{color:var(--warn);font-size:14px;margin:0}
 
+/* who's marking */
+.me{grid-column:1/-1;font-size:13px;color:var(--muted);margin-top:-6px}
+.me b{color:var(--ink);font-weight:600}
+.me button{border:0;background:none;padding:4px 2px;font-size:13px;font-weight:600;color:var(--done);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* name sheet */
+.sheet-bg{position:fixed;inset:0;z-index:20;background:rgba(10,12,14,.4);display:flex;align-items:flex-end;justify-content:center}
+.sheet{width:100%;max-width:520px;background:var(--surface);border-radius:26px 26px 0 0;display:flex;flex-direction:column;gap:12px;
+  padding:24px max(20px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px));
+  box-shadow:0 -10px 32px rgba(0,0,0,.18);animation:sheet-up .3s cubic-bezier(.2,.9,.3,1)}
+.sheet h2{margin:0;font-family:var(--f-display);font-weight:600;font-size:23px;line-height:1.15}
+.sheet p{margin:0;font-size:14px;color:var(--muted)}
+.sheet input{height:54px;border-radius:14px;border:2px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:18px;padding:0 16px;caret-color:var(--done)}
+.sheet input:focus{outline:none;border-color:var(--done)}
+.sheet .go{height:54px;border:0;border-radius:999px;background:var(--ink);color:var(--bg);font-weight:600;font-size:16px;cursor:pointer}
+.sheet .go:disabled{opacity:.35;cursor:default}
+.sheet .later{align-self:center;border:0;background:none;color:var(--muted);font-size:14px;cursor:pointer;padding:8px}
+@keyframes sheet-up{from{transform:translateY(100%)}to{transform:none}}
+
+/* heads-up when someone else marks a dose */
+.toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:15;transform:translateX(-50%);width:min(488px,calc(100% - 32px));
+  background:var(--ink);color:var(--bg);border-radius:18px;padding:12px 12px 12px 16px;display:flex;align-items:center;gap:12px;
+  box-shadow:0 10px 28px rgba(0,0,0,.28);animation:toast-in .32s cubic-bezier(.2,.9,.3,1.15)}
+.toast .tx{flex:1;min-width:0;font-size:15px;line-height:1.35}
+.toast .tx b{font-weight:600}
+.toast button{flex:none;height:40px;padding:0 16px;border:0;border-radius:999px;background:color-mix(in srgb,var(--bg) 20%,transparent);color:var(--bg);font-size:14px;font-weight:600;cursor:pointer}
+@keyframes toast-in{from{transform:translate(-50%,24px);opacity:0}to{transform:translateX(-50%);opacity:1}}
+@media (prefers-reduced-motion: reduce){ .sheet,.toast{animation:none} }
+
 @media (hover:hover){ .dose:hover{background:color-mix(in srgb,var(--surface) 88%,var(--ink))} .chip:hover{outline:1.5px solid var(--line)} }
 @media (prefers-reduced-motion: reduce){ *{transition:none!important} }
 </style>
@@ -170,6 +200,7 @@ h1{font-family:var(--f-display);font-weight:600;font-size:27px;line-height:1.05;
       <button id="lang-es" type="button" aria-pressed="false">ES</button>
     </div>
     <div class="sync" id="sync" data-state="wait"><i></i><span id="synctext">Connecting…</span></div>
+    <div class="me" id="me"></div>
   </header>
 
   <div class="daybar" id="daybar">
@@ -190,6 +221,18 @@ h1{font-family:var(--f-display);font-weight:600;font-size:27px;line-height:1.05;
     <section id="vetcard"></section>
   </div>
 </div>
+
+<div class="sheet-bg" id="sheetbg" hidden>
+  <form class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-h" aria-describedby="sheet-p">
+    <h2 id="sheet-h"></h2>
+    <p id="sheet-p"></p>
+    <label class="sr" for="name-in" id="name-l"></label>
+    <input id="name-in" type="text" maxlength="30" autocomplete="given-name" autocapitalize="words" enterkeyhint="done">
+    <button class="go" id="name-go" type="submit" disabled></button>
+    <button class="later" id="name-later" type="button"></button>
+  </form>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden><span class="tx" id="toast-tx"></span><button type="button" id="toast-go"></button></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -216,6 +259,10 @@ var FIREBASE_CONFIG = {"apiKey": "AIzaSyCR2KlFTtTimUOFARtCBY6J5KOwd9WGLrs", "aut
       food:{h:"Food",p:"Hill's i/d Low Fat stew. Work up to about 3 cans a day, split across her meals. Ask the clinic how long to keep her on it. No table food while she recovers."},
       warn:{h:"Go to an emergency vet if you see",li:["Bleeding from the nose, gums or anywhere else","Blood in her urine, black stool, or vomit that looks like coffee grounds","Bruises or tiny red dots on her skin, belly or gums","Pale gums, weakness, collapse or trouble breathing","Dragging her back legs, wobbling, or crying when her back is touched"]},
       vet:{h:"YMR Veterinary Services",p:"Dr. Yarytza Rivera",copy:"Copy number",copied:"Copied"},
+      me:"Marking as",change:"Change",noName:"Add your name so others know who gave each dose",
+      sheetH:"Who's giving Sofi her medicine?",sheetP:"Your name shows next to the doses you mark, so everyone knows who gave them. This phone remembers it.",
+      nameLabel:"Your name",namePh:"e.g. Marcos",saveMark:"Save and mark as given",save:"Save name",skip:"Mark it without a name",
+      givenBy:"Given by",at:"at",gaveVerb:"just gave",someone:"Someone",undone:"was unmarked",see:"See",
       weekdays:["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],
       months:["January","February","March","April","May","June","July","August","September","October","November","December"],
       longday:["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]},
@@ -235,6 +282,10 @@ var FIREBASE_CONFIG = {"apiKey": "AIzaSyCR2KlFTtTimUOFARtCBY6J5KOwd9WGLrs", "aut
       food:{h:"Comida",p:"Hill's i/d Low Fat. Ir subiendo hasta unas 3 latas al día, repartidas en sus comidas. Preguntar a la clínica por cuánto tiempo. Nada de comida de la mesa mientras se recupera."},
       warn:{h:"Llevarla a emergencia si",li:["Sangra por la nariz, las encías o cualquier parte","Tiene sangre en la orina, popó negra, o vomita algo que parece café molido","Le salen moretones o puntitos rojos en la piel, la panza o las encías","Tiene las encías pálidas, está muy débil, se desmaya o le cuesta respirar","Arrastra las patas de atrás, se tambalea o llora cuando le tocan la espalda"]},
       vet:{h:"YMR Veterinary Services",p:"Dra. Yarytza Rivera",copy:"Copiar número",copied:"Copiado"},
+      me:"Marcando como",change:"Cambiar",noName:"Agrega tu nombre para que sepan quién dio cada dosis",
+      sheetH:"¿Quién le da la medicina a Sofi?",sheetP:"Tu nombre aparece junto a las dosis que marques, para que todos sepan quién se las dio. Este teléfono lo recuerda.",
+      nameLabel:"Tu nombre",namePh:"ej. Marcos",saveMark:"Guardar y marcar como dada",save:"Guardar nombre",skip:"Marcarla sin nombre",
+      givenBy:"Dada por",at:"a las",gaveVerb:"acaba de darle",someone:"Alguien",undone:"se desmarcó",see:"Ver",
       weekdays:["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"],
       months:["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"],
       longday:["domingo","lunes","martes","miércoles","jueves","viernes","sábado"]}
@@ -278,6 +329,8 @@ var FIREBASE_CONFIG = {"apiKey": "AIzaSyCR2KlFTtTimUOFARtCBY6J5KOwd9WGLrs", "aut
   var checks = {};   // id -> {at}
   var mode = "wait"; // wait | live | local | fail
   var db = null, armed = null, armTimer = null, didScroll = false;
+  var myName = "", skipName = false, sheetPending = null, mine = {}, toastTimer = null, toastTarget = null;
+  try { myName = localStorage.getItem("sofi-name") || ""; } catch(e){}
 
   function loadLocal(){ try { var r = localStorage.getItem("sofi-checks"); if (r) checks = JSON.parse(r) || {}; } catch(e){ checks = {}; } }
   function saveLocal(){ try { localStorage.setItem("sofi-checks", JSON.stringify(checks)); } catch(e){} }
@@ -301,8 +354,64 @@ var FIREBASE_CONFIG = {"apiKey": "AIzaSyCR2KlFTtTimUOFARtCBY6J5KOwd9WGLrs", "aut
       var b=this, done=function(){ b.textContent=T[lang].vet.copied; setTimeout(function(){ b.textContent=T[lang].vet.copy; },1500); };
       try { navigator.clipboard.writeText("9563068868").then(done,function(){ selectPhone(); }); } catch(e){ selectPhone(); }
     };
-    renderSync();
+    renderSync(); renderMe();
   }
+  function givenText(c){
+    var t=T[lang];
+    return c.by ? t.givenBy+" "+c.by+" "+t.at+" "+fmtTime(c.at) : t.given+" "+fmtTime(c.at);
+  }
+  function renderMe(){
+    var t=T[lang], el=$("me");
+    el.innerHTML = myName
+      ? esc(t.me)+" <b>"+esc(myName)+"</b> · <button type='button' id='mebtn'>"+esc(t.change)+"</button>"
+      : "<button type='button' id='mebtn'>"+esc(t.noName)+"</button>";
+    $("mebtn").onclick = function(){ openSheet(null); };
+  }
+
+  /* Name sheet: asked once per phone, the first time someone marks a dose. */
+  function openSheet(pendingId){
+    var t=T[lang];
+    sheetPending = pendingId;
+    $("sheet-h").textContent=t.sheetH; $("sheet-p").textContent=t.sheetP; $("name-l").textContent=t.nameLabel;
+    var inp=$("name-in"); inp.placeholder=t.namePh; inp.value=myName;
+    $("name-go").textContent = pendingId ? t.saveMark : t.save;
+    $("name-go").disabled = !inp.value.trim();
+    $("name-later").textContent = t.skip; $("name-later").hidden = !pendingId;
+    $("sheetbg").hidden = false;
+    setTimeout(function(){ inp.focus(); }, 60);
+  }
+  function closeSheet(){ $("sheetbg").hidden = true; sheetPending = null; }
+  $("name-in").addEventListener("input", function(){ $("name-go").disabled = !this.value.trim(); });
+  $("sheet").addEventListener("submit", function(e){
+    e.preventDefault();
+    var v = $("name-in").value.trim().slice(0,30); if (!v) return;
+    myName = v; try { localStorage.setItem("sofi-name", v); } catch(err){}
+    var id = sheetPending; closeSheet(); renderMe();
+    if (id) setCheck(id, true); else renderDay();
+  });
+  $("name-later").onclick = function(){ var id=sheetPending; skipName = true; closeSheet(); if (id) setCheck(id, true); };
+  $("sheetbg").addEventListener("click", function(e){ if (e.target === this) closeSheet(); });
+  document.addEventListener("keydown", function(e){ if (e.key==="Escape" && !$("sheetbg").hidden) closeSheet(); });
+
+  /* Heads-up when someone else marks or unmarks a dose. */
+  function notify(id, by, added){
+    var p = id.split("_"), t=T[lang], L=lang==="es"?1:0, M=MEDS[p[2]]; if (!M) return;
+    var dp = p[0].split("-"), d = new Date(+dp[0], +dp[1]-1, +dp[2]);
+    var i = Math.round((d-START)/86400000);
+    var med = L?M.es:M.nm, when = t.slots[p[1]] + (i!==ti ? " · "+t.weekdays[d.getDay()]+" "+d.getDate() : "");
+    $("toast-tx").innerHTML = added
+      ? "<b>"+esc(by||t.someone)+"</b> "+esc(t.gaveVerb)+" "+esc(med)+" <span style='opacity:.75'>("+esc(when)+")</span>"
+      : esc(med)+" <span style='opacity:.75'>("+esc(when)+")</span> "+esc(t.undone);
+    $("toast-go").textContent = t.see;
+    toastTarget = {i:i, slot:p[1]};
+    var el=$("toast"); el.hidden = true; void el.offsetWidth; el.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(function(){ el.hidden = true; }, 8000);
+  }
+  $("toast-go").onclick = function(){
+    $("toast").hidden = true; if (!toastTarget) return;
+    cur = toastTarget.i; armed = null; renderStrip(); renderDay();
+    var c = $("comp-"+toastTarget.slot); if (c) c.scrollIntoView({block:"start", behavior:"smooth"});
+  };
   function selectPhone(){ var r=document.createRange(); r.selectNodeContents($("phone")); var s=window.getSelection(); s.removeAllRanges(); s.addRange(r); }
   function renderSync(){ var el=$("sync"); el.dataset.state = mode==="fail"?"local":mode; $("synctext").textContent = T[lang][mode]||""; }
 
@@ -350,7 +459,7 @@ var FIREBASE_CONFIG = {"apiKey": "AIzaSyCR2KlFTtTimUOFARtCBY6J5KOwd9WGLrs", "aut
       s[sl].forEach(function(m){
         var M=MEDS[m], id=doseId(cur,sl,m), c=checks[id];
         var tags = M.tags.map(function(g){ return '<span class="tag'+(g==="preFood"?" pre":"")+'">'+esc(t[g])+'</span>'; }).join("");
-        var foot = armed===id ? '<span class="undo">'+esc(t.undo)+'</span>' : (c&&c.at ? '<span class="given">'+esc(t.given)+' '+esc(fmtTime(c.at))+'</span>' : '');
+        var foot = armed===id ? '<span class="undo">'+esc(t.undo)+'</span>' : (c&&c.at ? '<span class="given">'+esc(givenText(c))+'</span>' : '');
         h += '<button type="button" class="dose'+(armed===id?" arm":"")+'" role="checkbox" aria-checked="'+(c?"true":"false")+'" data-id="'+id+'" style="--mc:var(--m-'+m+')">'+
              '<span class="pill '+M.form+'" aria-hidden="true"></span>'+
              '<span class="body"><span class="mn">'+esc(L?M.es:M.nm)+'</span><span class="amt">'+esc(M.amt[L])+'</span>'+
@@ -376,12 +485,14 @@ var FIREBASE_CONFIG = {"apiKey": "AIzaSyCR2KlFTtTimUOFARtCBY6J5KOwd9WGLrs", "aut
 
   function setCheck(id, on){
     var was = checks[id];
-    if (on) checks[id] = {at:new Date().toISOString()}; else delete checks[id];
+    if (on) checks[id] = myName ? {at:new Date().toISOString(), by:myName} : {at:new Date().toISOString()}; else delete checks[id];
+    mine[id] = Date.now();
     $("err").hidden = true;
     renderStrip(); renderDay();
     if (on && navigator.vibrate) { try { navigator.vibrate(12); } catch(e){} }
     if (mode==="live" && db){
-      var p = on ? db.doc("checks/"+id).set({done:true, at:checks[id].at}) : db.doc("checks/"+id).delete();
+      var payload = {done:true, at:on ? checks[id].at : ""}; if (on && checks[id].by) payload.by = checks[id].by;
+      var p = on ? db.doc("checks/"+id).set(payload) : db.doc("checks/"+id).delete();
       p.catch(function(){
         if (was) checks[id]=was; else delete checks[id];
         $("err").textContent = T[lang].saveErr; $("err").hidden = false; renderStrip(); renderDay();
@@ -389,7 +500,11 @@ var FIREBASE_CONFIG = {"apiKey": "AIzaSyCR2KlFTtTimUOFARtCBY6J5KOwd9WGLrs", "aut
     } else { saveLocal(); }
   }
   function tap(id){
-    if (!checks[id]) { armed = null; return setCheck(id, true); }
+    if (!checks[id]) {
+      armed = null;
+      if (!myName && !skipName) return openSheet(id);
+      return setCheck(id, true);
+    }
     // Unchecking is shared with everyone, so it takes a second tap.
     if (armed === id) { armed = null; clearTimeout(armTimer); return setCheck(id, false); }
     armed = id; clearTimeout(armTimer);
@@ -423,10 +538,21 @@ var FIREBASE_CONFIG = {"apiKey": "AIzaSyCR2KlFTtTimUOFARtCBY6J5KOwd9WGLrs", "aut
     firebase.initializeApp(FIREBASE_CONFIG);
     db = firebase.firestore();
     var timer=setTimeout(function(){ if (mode==="wait") goLocal("fail"); },10000);
+    var firstSnap = true;
     db.collection("checks").onSnapshot(function(snap){
       clearTimeout(timer);
+      // After the first load, announce changes made on other phones.
+      if (!firstSnap && !snap.metadata.hasPendingWrites){
+        snap.docChanges().forEach(function(ch){
+          var id = ch.doc.id;
+          if (mine[id] && Date.now()-mine[id] < 15000) return;
+          if (ch.type==="added") notify(id, ch.doc.data().by, true);
+          else if (ch.type==="removed") notify(id, null, false);
+        });
+      }
+      firstSnap = false;
       var next={};
-      snap.docs.forEach(function(doc){ var v=doc.data(); if (v && v.done) next[doc.id]={at:v.at}; });
+      snap.docs.forEach(function(doc){ var v=doc.data(); if (v && v.done) next[doc.id]= v.by ? {at:v.at, by:v.by} : {at:v.at}; });
       checks=next; saveLocal(); mode="live"; render(); scrollToDue();
     }, function(){ clearTimeout(timer); db=null; goLocal("fail"); });
   } catch(e){ goLocal("local"); }
