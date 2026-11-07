@@ -7,7 +7,10 @@
 <meta name="theme-color" content="#F1F0EC" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#131416" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-title" content="Sofi">
-<link rel="apple-touch-icon" href="sofi-photo.jpg">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="icon" href="sofi-photo.jpg">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Sofi's Medicine Chart</title>
@@ -184,6 +187,17 @@ h1{font-family:var(--f-display);font-weight:600;font-size:27px;line-height:1.05;
 @keyframes toast-in{from{transform:translate(-50%,24px);opacity:0}to{transform:translateX(-50%);opacity:1}}
 @media (prefers-reduced-motion: reduce){ .sheet,.toast{animation:none} }
 
+/* reminders */
+.remind{grid-column:1/-1}
+.remind:empty{display:none}
+.remind .rb{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 18px 0 14px;border:0;border-radius:999px;background:var(--surface);color:var(--ink);font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.remind .rb:disabled{opacity:.6;cursor:default}
+.remind svg{width:18px;height:18px;flex:none;color:var(--done)}
+.remind .st{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.remind .st b{color:var(--done);font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.remind .st button{border:0;background:none;padding:4px 2px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:10px;font-size:15px;color:var(--ink)}
+
 @media (hover:hover){ .dose:hover{background:color-mix(in srgb,var(--surface) 88%,var(--ink))} .chip:hover{outline:1.5px solid var(--line)} }
 @media (prefers-reduced-motion: reduce){ *{transition:none!important} }
 </style>
@@ -203,6 +217,7 @@ h1{font-family:var(--f-display);font-weight:600;font-size:27px;line-height:1.05;
     </div>
     <div class="sync" id="sync" data-state="wait"><i></i><span id="synctext">Connecting…</span></div>
     <div class="me" id="me"></div>
+    <div class="remind" id="remind"></div>
   </header>
 
   <div class="daybar" id="daybar">
@@ -233,6 +248,13 @@ h1{font-family:var(--f-display);font-weight:600;font-size:27px;line-height:1.05;
     <button class="go" id="name-go" type="submit" disabled></button>
     <button class="later" id="name-later" type="button"></button>
   </form>
+</div>
+<div class="sheet-bg" id="iosbg" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="ios-h">
+    <h2 id="ios-h"></h2>
+    <ol class="steps" id="ios-steps"></ol>
+    <button class="go" type="button" id="ios-ok"></button>
+  </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden><span class="tx" id="toast-tx"></span><button type="button" id="toast-go"></button></div>
 
@@ -267,6 +289,10 @@ var FIREBASE_CONFIG = {"apiKey": "AIzaSyCR2KlFTtTimUOFARtCBY6J5KOwd9WGLrs", "aut
       me:"Marking as",change:"Change",noName:"Add your name so others know who gave each dose",
       sheetH:"Who's giving Sofi her medicine?",sheetP:"Your name shows next to the doses you mark, so everyone knows who gave them. This phone remembers it.",
       nameLabel:"Your name",namePh:"e.g. Marcos",saveMark:"Save and mark as given",save:"Save name",skip:"Mark it without a name",
+      remindOff:"Get reminders on this phone",remindOn:"Reminders on for this phone",remindTurnOff:"Turn off",remindWorking:"Turning on…",
+      remindBlocked:"Notifications are blocked for this site. Allow them in your phone's settings to get reminders.",
+      remindNo:"This browser can't show reminders. Use Safari on iPhone or Chrome on Android.",remindFail:"Couldn't turn on reminders. Try again.",
+      iosH:"First, add the chart to your Home Screen",iosSteps:["In Safari, tap the Share button (the square with an arrow).","Choose \u201cAdd to Home Screen\u201d, then tap Add.","Open Sofi from your Home Screen and tap \u201cGet reminders\u201d again."],iosOk:"Got it",
       givenBy:"Given by",at:"at",gaveVerb:"just gave",someone:"Someone",undone:"was unmarked",see:"See",
       weekdays:["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],
       months:["January","February","March","April","May","June","July","August","September","October","November","December"],
@@ -293,6 +319,10 @@ var FIREBASE_CONFIG = {"apiKey": "AIzaSyCR2KlFTtTimUOFARtCBY6J5KOwd9WGLrs", "aut
       me:"Marcando como",change:"Cambiar",noName:"Agrega tu nombre para que sepan quién dio cada dosis",
       sheetH:"¿Quién le da la medicina a Sofi?",sheetP:"Tu nombre aparece junto a las dosis que marques, para que todos sepan quién se las dio. Este teléfono lo recuerda.",
       nameLabel:"Tu nombre",namePh:"ej. Marcos",saveMark:"Guardar y marcar como dada",save:"Guardar nombre",skip:"Marcarla sin nombre",
+      remindOff:"Recibir recordatorios en este teléfono",remindOn:"Recordatorios activados en este teléfono",remindTurnOff:"Desactivar",remindWorking:"Activando…",
+      remindBlocked:"Las notificaciones están bloqueadas para este sitio. Actívalas en los ajustes del teléfono para recibir recordatorios.",
+      remindNo:"Este navegador no puede mostrar recordatorios. Usa Safari en iPhone o Chrome en Android.",remindFail:"No se pudieron activar los recordatorios. Inténtalo otra vez.",
+      iosH:"Primero, agrega la tabla a tu pantalla de inicio",iosSteps:["En Safari, toca el botón Compartir (el cuadro con una flecha).","Elige \u201cAgregar a inicio\u201d y toca Agregar.","Abre Sofi desde tu pantalla de inicio y toca \u201cRecibir recordatorios\u201d otra vez."],iosOk:"Entendido",
       givenBy:"Dada por",at:"a las",gaveVerb:"acaba de darle",someone:"Alguien",undone:"se desmarcó",see:"Ver",
       weekdays:["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"],
       months:["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"],
@@ -392,7 +422,7 @@ var FIREBASE_CONFIG = {"apiKey": "AIzaSyCR2KlFTtTimUOFARtCBY6J5KOwd9WGLrs", "aut
       var b=this, done=function(){ b.textContent=T[lang].vet.copied; setTimeout(function(){ b.textContent=T[lang].vet.copy; },1500); };
       try { navigator.clipboard.writeText("9563068868").then(done,function(){ selectPhone(); }); } catch(e){ selectPhone(); }
     };
-    renderSync(); renderMe();
+    renderSync(); renderMe(); renderRemind();
   }
   function givenText(c){
     var t=T[lang];
@@ -424,6 +454,7 @@ var FIREBASE_CONFIG = {"apiKey": "AIzaSyCR2KlFTtTimUOFARtCBY6J5KOwd9WGLrs", "aut
     e.preventDefault();
     var v = $("name-in").value.trim().slice(0,30); if (!v) return;
     myName = v; try { localStorage.setItem("sofi-name", v); } catch(err){}
+    refreshSub();
     var id = sheetPending; closeSheet(); renderMe();
     if (id) setCheck(id, true); else renderDay();
   });
@@ -556,7 +587,7 @@ var FIREBASE_CONFIG = {"apiKey": "AIzaSyCR2KlFTtTimUOFARtCBY6J5KOwd9WGLrs", "aut
   $("prev").onclick=function(){ if (cur>0){ cur--; armed=null; renderStrip(); renderDay(); } };
   $("next").onclick=function(){ if (cur<LAST){ cur++; armed=null; renderStrip(); renderDay(); } };
   $("todaybtn").onclick=function(){ cur=Math.min(Math.max(ti,0),LAST); renderStrip(); renderDay(); };
-  function setLang(l){ lang=l; try{ localStorage.setItem("sofi-lang",l); }catch(e){} render(); }
+  function setLang(l){ lang=l; try{ localStorage.setItem("sofi-lang",l); }catch(e){} render(); refreshSub(); }
   $("lang-en").onclick=function(){ setLang("en"); };
   $("lang-es").onclick=function(){ setLang("es"); };
 
@@ -569,6 +600,83 @@ var FIREBASE_CONFIG = {"apiKey": "AIzaSyCR2KlFTtTimUOFARtCBY6J5KOwd9WGLrs", "aut
 
   render();
   barTop = bar.getBoundingClientRect().top + window.scrollY;
+
+  /* ---------- Push reminders ---------- */
+  var VAPID_PUBLIC = "BKQVEh0lxhMPEtdNEKCAyMTkJsbpK2werjhhY9FJmJD9AYawPeApcr6IS1Rw60yRfLb_1CaDa7Ptenaeo23_dV4";
+  var pushState = "unknown"; // unknown | unsupported | ios-install | blocked | off | working | on
+  var swReg = null;
+  var BELL = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9a6 6 0 1 1 12 0c0 5 2 6.5 2 6.5H4S6 14 6 9z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M10 19a2 2 0 0 0 4 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+  function isIOS(){ return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1); }
+  function isStandalone(){ return (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone===true; }
+  function pushSupported(){ return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window; }
+  function b64ToBytes(str){ var pad="=".repeat((4-str.length%4)%4), raw=atob((str+pad).replace(/-/g,"+").replace(/_/g,"/")), out=new Uint8Array(raw.length); for (var k=0;k<raw.length;k++) out[k]=raw.charCodeAt(k); return out; }
+  function subId(endpoint){
+    return crypto.subtle.digest("SHA-256", new TextEncoder().encode(endpoint)).then(function(h){
+      return Array.from(new Uint8Array(h)).map(function(x){ return x.toString(16).padStart(2,"0"); }).join("").slice(0,40);
+    });
+  }
+  function saveSub(sub){
+    if (!db) return Promise.reject(new Error("offline"));
+    var j = sub.toJSON();
+    return subId(j.endpoint).then(function(id){
+      try { localStorage.setItem("sofi-sub", id); } catch(e){}
+      return db.doc("subs/"+id).set({endpoint:j.endpoint, p256dh:j.keys.p256dh, auth:j.keys.auth, name:myName||"", lang:lang, at:new Date().toISOString()});
+    });
+  }
+  function currentSub(){ return swReg ? swReg.pushManager.getSubscription() : Promise.resolve(null); }
+  function refreshSub(){ currentSub().then(function(s){ if (s) saveSub(s).catch(function(){}); }); }
+  function showErr(msg){ $("err").textContent = msg; $("err").hidden = false; }
+  function renderRemind(){
+    var t=T[lang], el=$("remind"); if (!el) return;
+    if (pushState==="unknown"){ el.innerHTML=""; return; }
+    if (pushState==="unsupported"){ el.innerHTML='<div class="st">'+esc(t.remindNo)+'</div>'; return; }
+    if (pushState==="blocked"){ el.innerHTML='<div class="st">'+esc(t.remindBlocked)+'</div>'; return; }
+    if (pushState==="on"){
+      el.innerHTML='<div class="st"><b>'+BELL+esc(t.remindOn)+'</b> · <button type="button" id="rb-off">'+esc(t.remindTurnOff)+'</button></div>';
+      $("rb-off").onclick = disablePush; return;
+    }
+    el.innerHTML='<button type="button" class="rb" id="rb-on"'+(pushState==="working"?" disabled":"")+'>'+BELL+esc(pushState==="working"?t.remindWorking:t.remindOff)+'</button>';
+    $("rb-on").onclick = enablePush;
+  }
+  function enablePush(){
+    var t=T[lang];
+    if (pushState==="ios-install"){
+      $("ios-h").textContent=t.iosH; $("ios-ok").textContent=t.iosOk;
+      $("ios-steps").innerHTML=t.iosSteps.map(function(x){ return "<li>"+esc(x)+"</li>"; }).join("");
+      $("iosbg").hidden=false; return;
+    }
+    pushState="working"; renderRemind();
+    Notification.requestPermission().then(function(perm){
+      if (perm!=="granted"){ pushState = perm==="denied" ? "blocked" : "off"; renderRemind(); return; }
+      return navigator.serviceWorker.ready.then(function(reg){
+        swReg = reg;
+        return reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64ToBytes(VAPID_PUBLIC)});
+      }).then(saveSub).then(function(){ pushState="on"; renderRemind(); });
+    }).catch(function(){ pushState="off"; renderRemind(); showErr(T[lang].remindFail); });
+  }
+  function disablePush(){
+    var id=null; try { id=localStorage.getItem("sofi-sub"); } catch(e){}
+    if (id && db) db.doc("subs/"+id).delete().catch(function(){});
+    currentSub().then(function(s){ return s && s.unsubscribe(); }).then(function(){ pushState="off"; renderRemind(); });
+  }
+  function goToDay(k){
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(k||""); if (!m) return;
+    var i = Math.round((new Date(+m[1],+m[2]-1,+m[3]) - START)/86400000);
+    if (i<0 || i>LAST) return;
+    cur=i; armed=null; renderStrip(); renderDay();
+  }
+  function initPush(){
+    if (!pushSupported()){ pushState = (isIOS() && !isStandalone()) ? "ios-install" : "unsupported"; renderRemind(); return; }
+    navigator.serviceWorker.addEventListener("message", function(e){ if (e.data && e.data.day) goToDay(e.data.day); });
+    navigator.serviceWorker.register("/sw.js").then(function(reg){ swReg=reg; return reg.pushManager.getSubscription(); }).then(function(sub){
+      pushState = Notification.permission==="denied" ? "blocked" : (sub ? "on" : "off");
+      renderRemind();
+      if (sub) saveSub(sub).catch(function(){});
+    }).catch(function(){ pushState="unsupported"; renderRemind(); });
+  }
+  $("ios-ok").onclick = function(){ $("iosbg").hidden = true; };
+  $("iosbg").addEventListener("click", function(e){ if (e.target === this) this.hidden = true; });
+  try { goToDay(new URLSearchParams(location.search).get("day")); } catch(e){}
 
   function goLocal(m){ mode=m; loadLocal(); render(); scrollToDue(); }
   // Show the last checks this phone saw right away, then go live.
@@ -595,6 +703,7 @@ var FIREBASE_CONFIG = {"apiKey": "AIzaSyCR2KlFTtTimUOFARtCBY6J5KOwd9WGLrs", "aut
       checks=next; saveLocal(); mode="live"; render(); scrollToDue();
     }, function(){ clearTimeout(timer); db=null; goLocal("fail"); });
   } catch(e){ goLocal("local"); }
+  initPush();
 })();
 </script>
 
