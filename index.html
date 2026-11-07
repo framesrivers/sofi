@@ -303,7 +303,7 @@ var FIREBASE_CONFIG = {"apiKey": "AIzaSyCR2KlFTtTimUOFARtCBY6J5KOwd9WGLrs", "aut
     pred:{nm:"Prednisone 5 mg",es:"Prednisona 5 mg",form:"tab",amt:["1 tablet","1 pastilla"],why:["Protects her platelets","Protege sus plaquetas"],tags:["withFood"]},
     mirt:{nm:"Mirtazapine 15 mg",es:"Mirtazapina 15 mg",form:"tab",amt:["1 tablet","1 pastilla"],why:["Helps her appetite","Le abre el apetito"],tags:["preFood"]},
     comf:{nm:"ComforTrate 24 mg",es:"ComforTrate 24 mg",form:"tab",amt:["2 tablets","2 pastillas"],why:["For nausea and vomiting","Para las náuseas y el vómito"],tags:[]},
-    omep:{nm:"Omeprazole 10 mg",es:"Omeprazol 10 mg",form:"cap",amt:["2 capsules","2 cápsulas"],why:["Protects her stomach","Protege el estómago"],tags:["withFood"]},
+    omep:{nm:"Omeprazole 10 mg",es:"Omeprazol 10 mg",form:"cap",amt:["2 capsules","2 cápsulas"],why:["Protects her stomach","Protege el estómago"],tags:["preFood"]},
     nutra:{nm:"Nutramax kidney supplement",es:"Suplemento Nutramax para riñones",form:"cap",amt:["1 capsule","1 cápsula"],why:["Supports her kidneys","Ayuda a los riñones"],tags:["withFood","apart"]},
     visb:{nm:"Visbiome probiotic",es:"Probiótico Visbiome",form:"cap",amt:["Amount on the box","La cantidad de la caja"],why:["Protects her gut during the antibiotic","Protege el estómago durante el antibiótico"],tags:["withFood","apart"]},
     simp:{nm:"Simparica Trio",es:"Simparica Trio",form:"chew",amt:["1 chewable","1 masticable"],why:["Monthly tick, flea and heartworm protection","Protección mensual contra garrapatas, pulgas y gusano del corazón"],tags:["withFood"]}
@@ -345,7 +345,7 @@ var FIREBASE_CONFIG = {"apiKey": "AIzaSyCR2KlFTtTimUOFARtCBY6J5KOwd9WGLrs", "aut
     if (i>=1 && i<=5) s.pre.push("mirt");
     if (i>=1 && i<=28) s.am.push("doxy");
     if ((i>=1 && i<=8) || (i>=10 && i%2===0)) s.am.push("pred"); // 12h x3 days, 24h x5 days (Nov 10-14), then every other day from Nov 16
-    if (i>=1 && i<=7) s.am.push("omep");
+    if (i>=1 && i<=7) s.pre.push("omep"); // label: before a meal; given with mirtazapine, 30 min before breakfast
     if (i>=1 && i<=3) s.am.push("comf");
     if (i===30) s.am.push("simp");
     if (i>=1 && i<=28) s.mid.push("nutra");
