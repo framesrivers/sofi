@@ -122,6 +122,8 @@ h1{font-family:var(--f-display);font-weight:600;font-size:27px;line-height:1.05;
 .mn{font-weight:600;font-size:16px;line-height:1.25}
 .amt{font-size:15px}
 .why{font-size:13px;color:var(--muted)}
+.course{font-size:13px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;margin-top:1px}
+.dose[aria-checked="true"] .course{display:none}
 .tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
 .tag{font-size:12px;font-weight:500;padding:2px 8px;border-radius:999px;background:var(--tray);color:var(--ink)}
 .tag.pre{background:var(--note);color:var(--note-ink)}
@@ -251,7 +253,10 @@ var FIREBASE_CONFIG = {"apiKey": "AIzaSyCR2KlFTtTimUOFARtCBY6J5KOwd9WGLrs", "aut
       due:"Due now",done:"Done",gave:"given",
       withFood:"With food",preFood:"30 min before food",apart:"2+ hrs from doxycycline",
       nothing:"No medicines on this day.",alldone:"Every dose is given for this day.",
-      predOff:"No prednisone today. From Nov 11 it's every other day.",
+      predOff:"No prednisone today. It's every other day now.",
+      predGap:"No prednisone today. Every other day starts tomorrow, Monday at breakfast.",
+      predSwitch:"Prednisone goes to once a day starting tomorrow at breakfast. This morning's tablet is the last twice-a-day dose.",
+      predCall:"Last day of once-a-day prednisone. Every other day starts Monday, Nov 16. Call the clinic to ask how long every other day should last.",
       doxyLast:"Last day of doxycycline. Only the morning dose today.",
       firstNight:"First night. Give doxycycline and prednisone with dinner. The once-a-day medicines start tomorrow morning. If she already had any of them today, ask Claude to shift the dates.",
       predNote:"The prednisone label doesn't say whether to skip Nov 10. This chart skips it; confirm with the clinic.",
@@ -274,7 +279,10 @@ var FIREBASE_CONFIG = {"apiKey": "AIzaSyCR2KlFTtTimUOFARtCBY6J5KOwd9WGLrs", "aut
       due:"Toca ahora",done:"Listo",gave:"dadas",
       withFood:"Con comida",preFood:"30 min antes de comer",apart:"2+ horas lejos de la doxiciclina",
       nothing:"No hay medicinas este día.",alldone:"Ya se dieron todas las dosis de este día.",
-      predOff:"Hoy no toca prednisona. Desde el 11 de noviembre es un día sí y un día no.",
+      predOff:"Hoy no toca prednisona. Ahora es un día sí y un día no.",
+      predGap:"Hoy no toca prednisona. Un día sí y un día no empieza mañana lunes en el desayuno.",
+      predSwitch:"La prednisona pasa a una vez al día desde mañana en el desayuno. La pastilla de esta mañana es la última de dos veces al día.",
+      predCall:"Último día de prednisona diaria. Un día sí y un día no empieza el lunes 16 de noviembre. Llama a la clínica para preguntar hasta cuándo.",
       doxyLast:"Último día de doxiciclina. Hoy solo la dosis de la mañana.",
       firstNight:"Primera noche. Dale la doxiciclina y la prednisona con la cena. Las medicinas de una vez al día empiezan mañana. Si ya se le dio alguna hoy, pídele a Claude que cambie las fechas.",
       predNote:"La etiqueta de la prednisona no dice si se salta el 10 de noviembre. Aquí se salta; confírmalo con la clínica.",
@@ -301,12 +309,42 @@ var FIREBASE_CONFIG = {"apiKey": "AIzaSyCR2KlFTtTimUOFARtCBY6J5KOwd9WGLrs", "aut
     simp:{nm:"Simparica Trio",es:"Simparica Trio",form:"chew",amt:["1 chewable","1 masticable"],why:["Monthly tick, flea and heartworm protection","Protección mensual contra garrapatas, pulgas y gusano del corazón"],tags:["withFood"]}
   };
   var SLOTS = ["pre","am","mid","pm"];
+  // How each medicine is given, phase by phase (from the labels). Drives the progress line on each dose.
+  var DAILY = [{from:0,to:LAST,f:["Once a day","Una vez al día"],u:"day"}];
+  var PHASES = {
+    doxy:[{from:0,to:LAST,f:["Every 12 hours","Cada 12 horas"],u:"dose"}],
+    pred:[{from:0,to:3,f:["Every 12 hours","Cada 12 horas"],u:"dose"},
+          {from:4,to:8,f:["Once a day","Una vez al día"],u:"day"},
+          {from:9,to:LAST,f:["Every other day","Un día sí y un día no"],u:"dose",open:true}],
+    mirt:DAILY, comf:DAILY, omep:DAILY, nutra:DAILY, visb:DAILY,
+    simp:[{from:0,to:LAST,f:["Once a month","Una vez al mes"],u:"once"}]
+  };
+  function course(m, i, slot){
+    var L = lang==="es"?1:0, ph = null;
+    PHASES[m].forEach(function(p){ if (i>=p.from && i<=p.to) ph = p; });
+    if (!ph) return "";
+    var n=0, N=0;
+    for (var d=ph.from; d<=ph.to; d++){
+      var s=schedule(d);
+      SLOTS.forEach(function(sl){
+        if (s[sl].indexOf(m)<0) return;
+        N++;
+        if (d<i || (d===i && SLOTS.indexOf(sl)<=SLOTS.indexOf(slot))) n++;
+      });
+    }
+    var txt = ph.f[L];
+    if (ph.u==="once") return txt;
+    if (ph.open) return txt+" · "+(L?"dosis ":"dose ")+n+" · "+(L?"pregunta a la clínica hasta cuándo":"ask the clinic how long");
+    txt += " · "+(ph.u==="day" ? (L?"día ":"day ") : (L?"dosis ":"dose "))+n+(L?" de ":" of ")+N;
+    if (n===N && N>1) txt += L?" (última)":" (last)";
+    return txt;
+  }
   var SLOT_MIN = {pre:450, am:480, mid:780, pm:1200}; // minutes after midnight
   function schedule(i){
     var s = {pre:[],am:[],mid:[],pm:[]};
     if (i>=1 && i<=5) s.pre.push("mirt");
     if (i>=1 && i<=28) s.am.push("doxy");
-    if ((i>=1 && i<=3) || (i>=5 && i<=23 && i%2===1)) s.am.push("pred");
+    if ((i>=1 && i<=8) || (i>=10 && i%2===0)) s.am.push("pred"); // 12h x3 days, 24h x5 days (Nov 10-14), then every other day from Nov 16
     if (i>=1 && i<=7) s.am.push("omep");
     if (i>=1 && i<=3) s.am.push("comf");
     if (i===30) s.am.push("simp");
@@ -446,7 +484,8 @@ var FIREBASE_CONFIG = {"apiKey": "AIzaSyCR2KlFTtTimUOFARtCBY6J5KOwd9WGLrs", "aut
 
     var notes=[];
     if (cur===0) notes.push(t.firstNight);
-    if (cur>=3 && cur<=5) notes.push(t.predNote);
+    if (cur===3) notes.push(t.predSwitch);
+    if (cur===8) notes.push(t.predCall);
     var nb=$("notice"); nb.hidden = !notes.length; nb.innerHTML = notes.map(function(x){return "<div>"+esc(x)+"</div>";}).join("");
 
     var h="";
@@ -462,14 +501,14 @@ var FIREBASE_CONFIG = {"apiKey": "AIzaSyCR2KlFTtTimUOFARtCBY6J5KOwd9WGLrs", "aut
         var foot = armed===id ? '<span class="undo">'+esc(t.undo)+'</span>' : (c&&c.at ? '<span class="given">'+esc(givenText(c))+'</span>' : '');
         h += '<button type="button" class="dose'+(armed===id?" arm":"")+'" role="checkbox" aria-checked="'+(c?"true":"false")+'" data-id="'+id+'" style="--mc:var(--m-'+m+')">'+
              '<span class="pill '+M.form+'" aria-hidden="true"></span>'+
-             '<span class="body"><span class="mn">'+esc(L?M.es:M.nm)+'</span><span class="amt">'+esc(M.amt[L])+'</span>'+
+             '<span class="body"><span class="mn">'+esc(L?M.es:M.nm)+'</span><span class="amt">'+esc(M.amt[L])+'</span><span class="course">'+esc(course(m,cur,sl))+'</span>'+
              '<span class="why">'+esc(M.why[L])+'</span>'+(tags?'<span class="tags">'+tags+'</span>':'')+foot+'</span>'+
              '<span class="check">'+CHECK+'</span></button>';
       });
       h += '</div></section>';
     });
     var extra="";
-    if (cur>=4 && cur<=22 && cur%2===0) extra += '<div class="skip">'+esc(t.predOff)+'</div>';
+    if (cur>=9 && cur%2===1) extra += '<div class="skip">'+esc(cur===9 ? t.predGap : t.predOff)+'</div>';
     if (cur===28) extra += '<div class="skip">'+esc(t.doxyLast)+'</div>';
     $("slots").innerHTML = (h || '<p class="empty">'+esc(t.nothing)+'</p>') + extra;
   }
